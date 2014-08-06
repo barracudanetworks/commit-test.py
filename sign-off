@@ -1,0 +1,90 @@
+#!/usr/bin/env python3
+import argparse
+import os
+import pygit2
+from gitutils import *
+
+
+parser = argparse.ArgumentParser(description="""
+Add the given sign-offs to commits.
+""")
+parser.add_argument("signer", help="""name and email signing off; can specify
+                    multiple. duplicate values are ignored.""",
+                    action="append")
+parser.add_argument("--path", help="path to repository", default=".")
+parser.add_argument("--upstream",
+                    help="upstream branch to rebase onto", default="")
+parser.add_argument("--vim-path", help="path to vim", default="/usr/bin/vim")
+# TODO: Give option of specifying hashes; requires finding all commits before rebasing.
+args = parser.parse_args()
+
+args.signer = set(args.signer)
+
+repo = get_repo(args.path)
+bash = sh.Command("bash")
+
+escape_key = chr(27)
+
+current_branch = get_current_branch(repo)
+if current_branch is None:
+    print("HEAD is detached; cannot associate a branch.")
+    exit(1)
+
+if args.upstream:
+    target_branch = repo.lookup_branch(args.upstream)
+else:
+    target_branch = current_branch.upstream
+
+if target_branch is None:
+    print("No upstream set; cannot rebase.")
+    exit(1)
+
+target_id = target_branch.target
+print("Rebasing onto {}.".format(target_branch.branch_name))
+print("Enter commit titles to sign off on, and a blank line to exit.")
+
+
+def sign_off():
+    try:
+        target_title = input("> ")
+        if not target_title:
+            exit()
+
+        for commit in repo.walk(repo.head.target, pygit2.GIT_SORT_TOPOLOGICAL):
+            if commit.id == target_id:
+                print("Error: no commit with that title between {} and {}."
+                      .format(current_branch.branch_name,
+                              target_branch.branch_name))
+                return
+
+            title = commit.message.split("\n")[0]
+            if title != target_title:
+                continue
+
+            existing_sign_offs = sign_off_re.findall(commit.message)
+
+            # Remove commented lines, go to end, add sign-off lines.
+            add_end = ":g/^#.*/d\nGi"
+
+            new_sign_offs = args.signer
+            # Blank line between end of content and sign-offs.
+            if not existing_sign_offs:
+                add_end += "\n"
+            else:
+                # Do not add duplicates.
+                for signer in existing_sign_offs:
+                    new_sign_offs.discard(signer)
+
+            for signer in new_sign_offs:
+                add_end += "Signed-off-by: {}\n".format(signer)
+
+            add_end += escape_key + ":wq\n"
+
+            bash("-c", """GIT_SEQUENCE_EDITOR="sed -i -re 's/^pick {0}/r {0}/'" GIT_EDITOR={1} git rebase -i {2}""".format(short_hash(commit), args.vim_path, args.upstream), _in=add_end)
+            return
+    except EOFError:
+        print("")
+        exit()
+
+while True:
+    sign_off()

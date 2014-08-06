@@ -1,0 +1,107 @@
+#!/usr/bin/env python3
+import argparse
+import os
+import pygit2
+from gitutils import *
+
+
+def positive_int(string):
+    value = int(string)
+    if not value > 0:
+        raise argparse.ArgumentTypeError("{} is not positive".format(value))
+    return value
+
+parser = argparse.ArgumentParser(description="""
+Check that commits between the current branch and and a given stable branch have
+the required number of sign-offs.
+
+By default sign-offs by the author are not counted toward this requirement.
+""")
+parser.add_argument("--stable-branch",
+                    help="stable <remote>/<branch> to compare against",
+                    default="origin/master")
+parser.add_argument("--sign-offs", help="number of sign-offs required",
+                    type=positive_int, default=2)
+parser.add_argument("path", help='path to repository', nargs="?", default=".")
+# TODO: Per-repo configuration of expected signers
+parser.add_argument("--expecting", help="add to the pool of possible signers",
+                    action="append")
+parser.add_argument("--count-author",
+                    help="count the author's sign-off instead of ignoring it",
+                    action="store_true")
+parser.add_argument("-v", "--verbose", help="print who has already signed off",
+                    action="store_true")
+args = parser.parse_args()
+
+remote_ref = "refs/remotes/{}".format(args.stable_branch)
+
+if args.expecting:
+    args.expecting = set(args.expecting)
+
+repo = get_repo(args.path)
+
+current_branch = get_current_branch(repo)
+if current_branch is None:
+    print("HEAD is detached; cannot associate a branch.")
+    exit(1)
+
+try:
+    target_id = repo.lookup_reference(remote_ref).resolve().target
+except KeyError:
+    print("Cannot resolve {}.".format(args.stable_branch))
+    exit(1)
+
+head = repo.head.target
+
+if target_id == head:
+    print("{} is up to date with {}. No commits to check.".format(args.stable_branch,
+                                                                  current_branch.branch_name))
+    exit()
+
+if target_id not in map(lambda x: x.id, repo.walk(head)):
+    print("{} is not accessible from {}.".format(args.stable_branch,
+                                                 current_branch.branch_name))
+    exit(1)
+
+not_enough_signoffs = 0
+
+for commit in repo.walk(head, pygit2.GIT_SORT_TOPOLOGICAL):
+    if commit.id == target_id:
+        break
+    sign_offs = set(sign_off_re.findall(commit.message))
+
+    author = "{0.name} <{0.email}>".format(commit.author)
+    if not args.count_author:
+        sign_offs.discard(author)
+
+    if len(sign_offs) < args.sign_offs:
+        if not not_enough_signoffs:
+            print("These commits do not have {} sign-offs:".format(args.sign_offs))
+        title = commit.message.split('\n')[0]
+        print("{} {}".format(short_hash(commit), title))
+        if args.expecting:
+            additional = args.sign_offs - len(sign_offs)
+            not_signed = args.expecting.difference(sign_offs)
+            if additional < len(not_signed):
+                how_many = " {} of".format(additional)
+            else:
+                how_many = ""
+
+            print("    Expecting sign-offs from{}:".format(how_many))
+            for expected in not_signed:
+                print("    {}".format(expected))
+
+        if args.verbose:
+            if sign_offs:
+                print("  Existing sign-offs:")
+            for sign_off in sign_offs:
+                print("    {}".format(sign_off))
+        not_enough_signoffs += 1
+
+if not_enough_signoffs:
+    print("{} commits.".format(not_enough_signoffs))
+    exit(1)
+
+print("All commits {}..{} have enough sign-offs.".format(args.stable_branch,
+                                                         current_branch.branch_name))
+exit(0)
