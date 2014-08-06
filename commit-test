@@ -104,4 +104,3 @@ if not_enough_signoffs:
 
 print("All commits {}..{} have enough sign-offs.".format(args.stable_branch,
                                                          current_branch.branch_name))
-exit(0)
