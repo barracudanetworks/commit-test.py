@@ -87,9 +87,10 @@ for commit in repo.walk(head, pygit2.GIT_SORT_TOPOLOGICAL):
             else:
                 how_many = ""
 
-            print("    Expecting sign-offs from{}:".format(how_many))
-            for expected in not_signed:
-                print("    {}".format(expected))
+            if not_signed:
+                print("  Expecting sign-offs from{}:".format(how_many))
+                for expected in not_signed:
+                    print("    {}".format(expected))
 
         if args.verbose:
             if sign_offs:
