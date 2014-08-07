@@ -20,10 +20,10 @@ def get_current_branch(repo):
 
 def get_repo(path):
     path = os.path.abspath(path)
+    os.chdir(path)
     try:
-        path = pygit2.discover_repository(path)
-        os.chdir(path)
-        return pygit2.Repository(path)
+        repo_path = pygit2.discover_repository(path)
+        return pygit2.Repository(repo_path)
     except KeyError:
         print("Cannot find a repository in '{}'.".format(path))
         exit(1)
