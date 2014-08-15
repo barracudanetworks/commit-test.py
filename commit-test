@@ -22,10 +22,9 @@ parser.add_argument("--stable-branch",
                     default="origin/master")
 parser.add_argument("--sign-offs", help="number of sign-offs required",
                     type=positive_int, default=2)
-parser.add_argument("path", help='path to repository', nargs="?", default=".")
 # TODO: Per-repo configuration of expected signers
-parser.add_argument("--expecting", help="add to the pool of possible signers",
-                    action="append")
+parser.add_argument("expecting", help="add to the pool of possible signers",
+                    nargs="*")
 parser.add_argument("--count-author",
                     help="count the author's sign-off instead of ignoring it",
                     action="store_true")
@@ -38,7 +37,7 @@ remote_ref = "refs/remotes/{}".format(args.stable_branch)
 if args.expecting:
     args.expecting = set(args.expecting)
 
-repo = get_repo(args.path)
+repo = get_repo(".")
 
 current_branch = get_current_branch(repo)
 if current_branch is None:
