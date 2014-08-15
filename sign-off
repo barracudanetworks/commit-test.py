@@ -10,7 +10,7 @@ Add the given sign-offs to commits.
 """)
 parser.add_argument("signer", help="""name and email signing off; can specify
                     multiple. duplicate values are ignored.""",
-                    action="append")
+                    nargs="+")
 parser.add_argument("--path", help="path to repository", default=".")
 parser.add_argument("--upstream",
                     help="upstream branch to rebase onto", default="")
