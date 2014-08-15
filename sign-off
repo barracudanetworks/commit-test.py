@@ -74,6 +74,12 @@ def sign_off():
                 # Do not add duplicates.
                 for signer in existing_sign_offs:
                     new_sign_offs.discard(signer)
+                    if signer in args.signer:
+                        print("Already signed-off by {}.".format(signer))
+
+            # No non-duplicate sign-offs.
+            if not new_sign_offs:
+                return
 
             for signer in new_sign_offs:
                 add_end += "Signed-off-by: {}\n".format(signer)
