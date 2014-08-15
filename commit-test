@@ -139,6 +139,7 @@ if args.list_type == "per-signer" and not_enough_signoffs:
         print("  {} on:".format(signer))
         for commit_line in commit_lines:
             print("    {}".format(commit_line))
+        print("  {} commits.".format(len(commit_lines)))
 
 if not_enough_signoffs:
     print("{} commits.".format(not_enough_signoffs))
