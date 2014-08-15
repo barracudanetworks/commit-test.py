@@ -30,9 +30,25 @@ parser.add_argument("--count-author",
                     action="store_true")
 parser.add_argument("-v", "--verbose", help="print who has already signed off",
                     action="store_true")
+parser.add_argument("--list-type", choices=["per-commit", "per-signer"],
+                    default="per-signer", help="""
+per-signer:
+    List commits needing sign-offs per signer. Requires that at least one signer
+    is specified.
+
+per-commit:
+    List commits with expected signers if any are specified.
+""")
 args = parser.parse_args()
 
 remote_ref = "refs/remotes/{}".format(args.stable_branch)
+
+if args.list_type == "per-signer" and not args.expecting:
+    print("""\
+--list-type cannot be per-signer without a pool of possible signers.
+
+Either give possible signers or use --list-type=per-commit.""")
+    exit(1)
 
 if args.expecting:
     args.expecting = set(args.expecting)
@@ -64,6 +80,9 @@ if target_id not in map(lambda x: x.id, repo.walk(head)):
 
 not_enough_signoffs = 0
 
+by_commit = {}
+by_signer = {}
+
 for commit in repo.walk(head, pygit2.GIT_SORT_TOPOLOGICAL):
     if commit.id == target_id:
         break
@@ -74,13 +93,29 @@ for commit in repo.walk(head, pygit2.GIT_SORT_TOPOLOGICAL):
         sign_offs.discard(author)
 
     if len(sign_offs) < args.sign_offs:
-        if not not_enough_signoffs:
-            print("These commits do not have {} sign-offs:".format(args.sign_offs))
         title = commit.message.split('\n')[0]
-        print("{} {}".format(short_hash(commit), title))
+        commit_line = "{} {}".format(short_hash(commit), title)
+
+        by_commit[commit_line] = sign_offs
+
+        if args.expecting:
+            # TODO: Duplicate computation between here and per-commit output.
+            not_signed = args.expecting.difference(sign_offs)
+            for signer in not_signed:
+                by_signer.setdefault(signer, []).append(commit_line)
+
+        not_enough_signoffs += 1
+
+if args.list_type == "per-commit" and not_enough_signoffs:
+    print("These commits do not have {} sign-offs:".format(args.sign_offs))
+
+    for commit_line, sign_offs in by_commit.items():
+        print(commit_line)
+
         if args.expecting:
             additional = args.sign_offs - len(sign_offs)
             not_signed = args.expecting.difference(sign_offs)
+
             if additional < len(not_signed):
                 how_many = " {} of".format(additional)
             else:
@@ -96,7 +131,14 @@ for commit in repo.walk(head, pygit2.GIT_SORT_TOPOLOGICAL):
                 print("  Existing sign-offs:")
             for sign_off in sign_offs:
                 print("    {}".format(sign_off))
-        not_enough_signoffs += 1
+
+if args.list_type == "per-signer" and not_enough_signoffs:
+    print("Expecting sign-offs from")
+
+    for signer, commit_lines in by_signer.items():
+        print("  {} on:".format(signer))
+        for commit_line in commit_lines:
+            print("    {}".format(commit_line))
 
 if not_enough_signoffs:
     print("{} commits.".format(not_enough_signoffs))
