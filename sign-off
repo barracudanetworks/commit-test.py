@@ -66,7 +66,7 @@ def sign_off():
             # Remove commented lines, go to end, add sign-off lines.
             add_end = ":g/^#.*/d\nGi"
 
-            new_sign_offs = args.signer
+            new_sign_offs = args.signer.copy()
             # Blank line between end of content and sign-offs.
             if not existing_sign_offs:
                 add_end += "\n"
