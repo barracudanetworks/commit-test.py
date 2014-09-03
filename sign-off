@@ -79,6 +79,7 @@ def sign_off():
 
             # No non-duplicate sign-offs.
             if not new_sign_offs:
+                print("No more sign-offs to add.")
                 return
 
             for signer in new_sign_offs:
