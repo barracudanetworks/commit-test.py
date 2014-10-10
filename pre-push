@@ -6,5 +6,5 @@ branch="$(git rev-parse --abbrev-ref HEAD)"
 
 if [[ "$remote" == "origin" && "$branch" == "master" ]];
 then
-	commit-test || exit
+	commit-test 'Reviewer One <one@example.com>' 'Reviewer Two <two@example.com>' || exit
 fi
